@@ -252,7 +252,7 @@
 
     let isDragging = false;
     let launchPower = 0;
-    let armAngle = 80;
+    let armAngle = 120;
     const minAngle = -45;
     const maxAngle = 100;
 
@@ -264,8 +264,8 @@
     let isBouncing = false;
     let bounceStartTime = 0;
     let bounceAmplitude = 45 * scaleAvg;
-    const bounceDecay = 0.7;
-    const bounceFrequency = 5;
+    const bounceDecay = 2;
+    const bounceFrequency = 4;
 
     // Variables para el sistema de recarga
     let canShoot = true;
@@ -274,7 +274,7 @@
     function getRockPosition() {
         const rad = (90 + armAngle) * Math.PI / 180;
         const spoonTipX = pivotX + Math.cos(rad) * (armLength - 30 * scaleAvg) + 16 * scaleX;
-        const spoonTipY = pivotY - Math.sin(rad) * (armLength - 30 * scaleAvg) + 20 * scaleY;
+        const spoonTipY = pivotY + Math.sin(rad) * (armLength - 30 * scaleAvg) + 20 * scaleY;
 
         return {
             x: spoonTipX,
@@ -312,7 +312,7 @@
 
     const moveSpeed = 5 * scaleX;
     const leftLimit = 40 * scaleX;
-    const rightLimit = render.options.width - 180 * scaleX;
+    const rightLimit = 650 - 50 * scaleX; // Limitar hasta el primer pico del triángulo
 
     const keysPressed = {};
     let wheelRotation = 0;
@@ -333,7 +333,7 @@
         }
         if (keysPressed['ArrowRight']) {
             catapultX += moveSpeed;
-            if (catapultX > rightLimit) catapultX = rightLimit;
+            if (catapultX > rightLimit) catapultX = rightLimit; // Limitar hasta el primer pico del triángulo
             wheelRotation += 0.2;
         }
         pivotX = catapultX + 30 * scaleX;
@@ -379,14 +379,12 @@
     }
 
     function resetRock() {
-        // Crear una nueva roca
         rockStartPos = getRockPosition();
         Body.setPosition(rockBody, rockStartPos);
         Body.setStatic(rockBody, true);
         Body.setVelocity(rockBody, { x: 0, y: 0 });
         Body.setAngularVelocity(rockBody, 0);
 
-        // Restablecer la restricción
         rockConstraint = Constraint.create({
             pointA: { x: pivotX, y: pivotY },
             bodyB: rockBody,
@@ -397,31 +395,28 @@
         });
         World.add(world, rockConstraint);
 
-        // Restablecer ángulo del brazo
         armAngle = 80;
     }
 
-    // Función para reiniciar completamente el juego
     function resetGame() {
-        // Reiniciar la catapulta
         catapultX = 100 * scaleX;
         pivotX = catapultX + 30 * scaleX;
         wheelRotation = 0;
 
-        // Reiniciar la roca
         resetRock();
         canShoot = true;
         clearTimeout(reloadTimeout);
 
-        // Recrear los bloques
         createBlocks();
     }
 
-    // Evento para el botón de reinicio
     resetBtn.addEventListener('click', resetGame);
 
     let arrowAnimOffset = 0;
     let arrowAnimDirection = 1;
+    let fadeCount = 0;
+    const maxFades = 3;
+    let arrowAnimPhase = 0;
 
     render.canvas.addEventListener('mousedown', (e) => {
         if (!canShoot) return;
@@ -432,7 +427,6 @@
         const mouseX = (e.clientX - rect.left) * scaleX;
         const mouseY = (e.clientY - rect.top) * scaleY;
 
-        // Verificar si el clic está cerca de la roca
         const rockPos = getRockPosition();
         const distToRock = Math.hypot(mouseX - rockPos.x, mouseY - rockPos.y);
 
@@ -450,19 +444,15 @@
         const mouseX = (e.clientX - rect.left) * scaleX;
         const mouseY = (e.clientY - rect.top) * scaleY;
 
-        // Calcular ángulo basado en la posición del ratón
         const dx = mouseX - pivotX;
         const dy = pivotY + mouseY;
 
-        // Calcular el ángulo (0-90 grados)
         let angle = Math.atan2(dy, dx) * 180 / Math.PI;
         angle = Math.max(minAngle, Math.min(maxAngle, angle));
         armAngle = angle;
 
-        // Calcular distancia desde el pivote
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Determinar la fuerza basada en las zonas
         if (distance <= minForceRadius) {
             launchPower = 20;
         } else if (distance <= midForceRadius) {
@@ -473,7 +463,6 @@
             launchPower = 100;
         }
 
-        // Mover la roca a la nueva posición
         const newRockPos = getRockPosition();
         Body.setPosition(rockBody, newRockPos);
     });
@@ -489,7 +478,6 @@
             World.remove(world, rockConstraint);
             Body.setStatic(rockBody, false);
 
-            // Aplicar velocidad basada en el ángulo y la potencia
             Body.setVelocity(rockBody, {
                 x: Math.cos(rad) * speed * 1.5 * scaleX,
                 y: -Math.sin(rad) * speed * 1.5 * scaleY
@@ -497,15 +485,14 @@
 
             isBouncing = true;
             bounceStartTime = performance.now();
-            bounceAmplitude = 0;
+            bounceAmplitude = 45 * scaleAvg;
 
-            // Iniciar recarga
             canShoot = false;
             clearTimeout(reloadTimeout);
             reloadTimeout = setTimeout(() => {
                 resetRock();
                 canShoot = true;
-            }, 6000);
+            }, 1900);
         } else {
             const newRockPos = getRockPosition();
             Body.setPosition(rockBody, newRockPos);
@@ -522,25 +509,79 @@
     let tutorialHandAngle = 0;
     const animationStartTime = performance.now();
 
+    // Variables para la animación de la mano
+    let handAnimTime = 0;
+    const handAnimDuration = 7.6; // Duración de la animación en segundos
+    let handAnimRepeatCount = 0;
+    const maxHandAnimRepeats = 4; // Número de repeticiones de la animación
+
     Events.on(render, 'afterRender', () => {
         const ctx = render.context;
         updateCatapultPosition();
 
-        const elapsedTime = (performance.now() - animationStartTime) / 2000;
+        const elapsedTime = (performance.now() - animationStartTime) / 1000;
 
-        if (elapsedTime <= 4) {
-            arrowAnimOffset += 0.3 * arrowAnimDirection * scaleAvg;
-            if (arrowAnimOffset > 8 * scaleAvg || arrowAnimOffset < 0) arrowAnimDirection *= -1;
+        // Dibujar brazo de la catapulta al fondo
+        const rad = (90 - armAngle) * Math.PI / 180;
 
+        // Efecto de rebote elástico
+        if (isBouncing) {
+            const bounceTime = (performance.now() - bounceStartTime) / 1000;
+            const bounceEffect = bounceAmplitude * Math.sin(bounceTime * bounceFrequency) * Math.exp(-bounceTime * bounceDecay);
+            const bounceAngle = 0 + 90 * Math.sin(bounceTime * bounceFrequency); // Oscilar entre 0 y 90 grados
             ctx.save();
-            ctx.translate(catapultX + 160 * scaleX, catapultY - 110 * scaleY + arrowAnimOffset);
-            ctx.drawImage(images.arrow, -30 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
+            ctx.translate(pivotX, pivotY);
+            ctx.rotate(-bounceAngle * Math.PI / 180 + bounceEffect / 10);
+            const armWidth = armLength;
+            const armHeight = 40 * scaleAvg;
+            ctx.drawImage(images.arm, -armWidth + 65 * scaleAvg, -armHeight / -2, armWidth, armHeight);
             ctx.restore();
 
+            if (Math.abs(bounceEffect) < 0.1) {
+                isBouncing = false;
+            }
+        } else {
             ctx.save();
-            ctx.translate(catapultX - 160 * scaleX, catapultY - 110 * scaleY + arrowAnimOffset);
+            ctx.translate(pivotX, pivotY);
+            ctx.rotate(-rad);
+            const armWidth = armLength;
+            const armHeight = 40 * scaleAvg;
+            ctx.drawImage(images.arm, -armWidth + 40 * scaleAvg, -armHeight / -4, armWidth, armHeight);
+            ctx.restore();
+        }
+
+        if (elapsedTime <= 5) {
+            if (arrowAnimPhase === 0) {
+                arrowAnimOffset += 1.5 * arrowAnimDirection * scaleAvg;
+                if (arrowAnimOffset > 50 * scaleAvg) {
+                    arrowAnimOffset = 50 * scaleAvg;
+                    arrowAnimPhase = 1;
+                }
+            } else {
+                arrowAnimOffset -= 1.5 * arrowAnimDirection * scaleAvg;
+                if (arrowAnimOffset < 0) {
+                    arrowAnimOffset = 0;
+                    arrowAnimPhase = 0;
+                    fadeCount++;
+                    if (fadeCount >= maxFades) {
+                        fadeCount = 0;
+                    }
+                }
+            }
+
+            // Draw left arrow with fading and moving effect
+            ctx.save();
+            ctx.globalAlpha = 1 - (fadeCount * 0.3);
+            ctx.translate(catapultX - 100 * scaleX - arrowAnimOffset, catapultY - 110 * scaleY);
             ctx.scale(-1, 1);
             ctx.drawImage(images.arrow, -120 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
+            ctx.restore();
+
+            // Draw right arrow with fading and moving effect
+            ctx.save();
+            ctx.globalAlpha = 1 - (fadeCount * 0.3);
+            ctx.translate(catapultX + 100 * scaleX + arrowAnimOffset, catapultY - 110 * scaleY);
+            ctx.drawImage(images.arrow, -30 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
             ctx.restore();
         }
 
@@ -552,29 +593,15 @@
         // Dibujar ruedas
         const wheelSize = 48 * scaleAvg;
         ctx.save();
-        ctx.translate(catapultX + 40 * scaleX + wheelSize/2, catapultY + 30 * scaleY + wheelSize/2);
+        ctx.translate(catapultX + 40 * scaleX + wheelSize / 2, catapultY + 30 * scaleY + wheelSize / 2);
         ctx.rotate(wheelRotation);
-        ctx.drawImage(images.wheel, -wheelSize/2, -wheelSize/2, wheelSize, wheelSize);
+        ctx.drawImage(images.wheel, -wheelSize / 2, -wheelSize / 2, wheelSize, wheelSize);
         ctx.restore();
 
         ctx.save();
-        ctx.translate(catapultX - 30 * scaleX + wheelSize/2, catapultY + 30 * scaleY + wheelSize/2);
+        ctx.translate(catapultX - 30 * scaleX + wheelSize / 2, catapultY + 30 * scaleY + wheelSize / 2);
         ctx.rotate(wheelRotation);
-        ctx.drawImage(images.wheel, -wheelSize/2, -wheelSize/2, wheelSize, wheelSize);
-        ctx.restore();
-
-        // Dibujar brazo de la catapulta
-        const rad = (90 - armAngle) * Math.PI / 180;
-
-        ctx.save();
-        ctx.translate(pivotX, pivotY);
-        ctx.rotate(-rad);
-
-        // Dibujar el brazo
-        const armWidth = armLength;
-        const armHeight = 40 * scaleAvg;
-        ctx.drawImage(images.arm, -armWidth + 30 * scaleAvg, -armHeight/2, armWidth, armHeight);
-
+        ctx.drawImage(images.wheel, -wheelSize / 2, -wheelSize / 2, wheelSize, wheelSize);
         ctx.restore();
 
         // Actualizar posición de la roca si está estática
@@ -583,17 +610,28 @@
             Body.setPosition(rockBody, newRockPos);
         }
 
-        // Dibujar la mano tutorial
-        if (elapsedTime <= 3) {
+        // Dibujar la mano tutorial con animación arqueada
+        if (handAnimRepeatCount < maxHandAnimRepeats) {
             const rockPos = getRockPosition();
-            const handY = rockPos.y - 30 * scaleY + Math.sin(tutorialHandAngle) * 30 * scaleY;
+            const startX = 742.5; // Posición inicial en X (centro del triángulo)
+            const startY = 50; // Posición inicial en Y (arriba del triángulo)
+            const endX = rockPos.x; // Posición final en X (posición de la roca)
+            const endY = rockPos.y; // Posición final en Y (posición de la roca)
+
+            // Calcular la posición intermedia en la trayectoria arqueada
+            handAnimTime += 0.05; // Incrementar el tiempo transcurrido
+            if (handAnimTime > handAnimDuration) {
+                handAnimTime = 0;
+                handAnimRepeatCount++;
+            }
+            const progress = handAnimTime / handAnimDuration;
+            const midX = startX + (endX - startX) * progress;
+            const midY = startY + (endY - startY) * progress - Math.sin(progress * Math.PI) * 100 * scaleY;
 
             ctx.save();
-            ctx.translate(rockPos.x, handY);
+            ctx.translate(midX, midY);
             ctx.drawImage(images.tutorialHand, -10 * scaleAvg, 10 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
             ctx.restore();
-
-            tutorialHandAngle += 0.08;
         }
 
         if (isDragging && canShoot) {
@@ -614,6 +652,18 @@
             ctx.fillText('...', pivotX, pivotY - 50 * scaleAvg);
             ctx.restore();
         }
+
+        // Dibujar el triángulo en frente de todo
+        ctx.save();
+        ctx.translate(742.5, 570 - 15 * scaleY);
+        ctx.fillStyle = '#808080';
+        ctx.beginPath();
+        ctx.moveTo(40 * scaleX, 0);
+        ctx.lineTo(0, -40 * scaleY);
+        ctx.lineTo(-40 * scaleX, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
     });
 
     Runner.run(engine);
