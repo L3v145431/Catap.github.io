@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -14,6 +15,7 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
+            touch-action: none; /* Añadido para evitar acciones táctiles predeterminadas */
         }
         #game-container {
             position: relative;
@@ -264,8 +266,8 @@
     let isBouncing = false;
     let bounceStartTime = 0;
     let bounceAmplitude = 45 * scaleAvg;
-    const bounceDecay = 2;
-    const bounceFrequency = 4;
+    const bounceDecay = 4;
+    const bounceFrequency = 10;
 
     // Variables para el sistema de recarga
     let canShoot = true;
@@ -418,6 +420,106 @@
     const maxFades = 3;
     let arrowAnimPhase = 0;
 
+    // Función para manejar eventos táctiles
+    function handleTouch(e, handler) {
+        const rect = render.canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const touch = e.touches[0];
+        const mouseX = (touch.clientX - rect.left) * scaleX;
+        const mouseY = (touch.clientY - rect.top) * scaleY;
+
+        handler({ clientX: mouseX, clientY: mouseY });
+        e.preventDefault();
+    }
+
+    // Función para manejar el inicio del tacto
+    function handleTouchStart(e) {
+        handleTouch(e, (pos) => {
+            if (!canShoot) return;
+            const rockPos = getRockPosition();
+            const distToRock = Math.hypot(pos.clientX - rockPos.x, pos.clientY - rockPos.y);
+            if (distToRock < 50 * scaleAvg) {
+                isDragging = true;
+            }
+        });
+    }
+
+    // Función para manejar el movimiento táctil
+    function handleTouchMove(e) {
+        handleTouch(e, (pos) => {
+            if (!isDragging || !canShoot) return;
+            const dx = pos.clientX - pivotX;
+            const dy = pivotY - pos.clientY;
+
+            let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            angle = Math.max(minAngle, Math.min(maxAngle, angle));
+            armAngle = angle;
+
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance <= minForceRadius) {
+                launchPower = 20;
+            } else if (distance <= midForceRadius) {
+                launchPower = 20 + ((distance - minForceRadius) / (midForceRadius - minForceRadius)) * 40;
+            } else if (distance <= maxForceRadius) {
+                launchPower = 60 + ((distance - midForceRadius) / (maxForceRadius - midForceRadius)) * 40;
+            } else {
+                launchPower = 100;
+            }
+
+            const newRockPos = getRockPosition();
+            Body.setPosition(rockBody, newRockPos);
+        });
+    }
+
+    // Función para manejar el fin del tacto
+    function handleTouchEnd(e) {
+        if (!isDragging || !canShoot) return;
+        isDragging = false;
+
+        if (launchPower > 5) {
+            const rad = (90 - armAngle) * Math.PI / 180;
+            const speed = launchPower / 5;
+
+            World.remove(world, rockConstraint);
+            Body.setStatic(rockBody, false);
+
+            Body.setVelocity(rockBody, {
+                x: Math.cos(rad) * speed * 1.5 * scaleX,
+                y: -Math.sin(rad) * speed * 1.5 * scaleY
+            });
+
+            isBouncing = true;
+            bounceStartTime = performance.now();
+            bounceAmplitude = 45 * scaleAvg;
+
+            canShoot = false;
+            clearTimeout(reloadTimeout);
+            reloadTimeout = setTimeout(() => {
+                resetRock();
+                canShoot = true;
+            }, 1900);
+        } else {
+            const newRockPos = getRockPosition();
+            Body.setPosition(rockBody, newRockPos);
+
+            if (!world.constraints.includes(rockConstraint)) {
+                World.add(world, rockConstraint);
+            }
+
+            armAngle = 0;
+            launchPower = 0;
+        }
+        e.preventDefault();
+    }
+
+    // Añadir listeners para eventos táctiles
+    render.canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    render.canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    render.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+    // Manejadores de eventos del ratón
     render.canvas.addEventListener('mousedown', (e) => {
         if (!canShoot) return;
 
@@ -515,26 +617,20 @@
     let handAnimRepeatCount = 0;
     const maxHandAnimRepeats = 4; // Número de repeticiones de la animación
 
-    Events.on(render, 'afterRender', () => {
-        const ctx = render.context;
-        updateCatapultPosition();
-
-        const elapsedTime = (performance.now() - animationStartTime) / 1000;
-
-        // Dibujar brazo de la catapulta al fondo
+    // Función para dibujar el brazo con efecto de rebote
+    function drawArmWithBounceEffect(ctx, pivotX, pivotY, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg) {
         const rad = (90 - armAngle) * Math.PI / 180;
 
-        // Efecto de rebote elástico
         if (isBouncing) {
             const bounceTime = (performance.now() - bounceStartTime) / 1000;
             const bounceEffect = bounceAmplitude * Math.sin(bounceTime * bounceFrequency) * Math.exp(-bounceTime * bounceDecay);
-            const bounceAngle = 0 + 90 * Math.sin(bounceTime * bounceFrequency); // Oscilar entre 0 y 90 grados
+            const bounceAngle = bounceEffect * Math.PI / 180;
             ctx.save();
             ctx.translate(pivotX, pivotY);
-            ctx.rotate(-bounceAngle * Math.PI / 180 + bounceEffect / 10);
+            ctx.rotate(-rad + bounceAngle);
             const armWidth = armLength;
             const armHeight = 40 * scaleAvg;
-            ctx.drawImage(images.arm, -armWidth + 65 * scaleAvg, -armHeight / -2, armWidth, armHeight);
+            ctx.drawImage(images.arm, -armWidth +23 * scaleAvg, -armHeight / -3, armWidth, armHeight);
             ctx.restore();
 
             if (Math.abs(bounceEffect) < 0.1) {
@@ -546,9 +642,19 @@
             ctx.rotate(-rad);
             const armWidth = armLength;
             const armHeight = 40 * scaleAvg;
-            ctx.drawImage(images.arm, -armWidth + 40 * scaleAvg, -armHeight / -4, armWidth, armHeight);
+            ctx.drawImage(images.arm, -armWidth + 40 * scaleAvg, -armHeight / -3, armWidth, armHeight);
             ctx.restore();
         }
+    }
+
+    Events.on(render, 'afterRender', () => {
+        const ctx = render.context;
+        updateCatapultPosition();
+
+        const elapsedTime = (performance.now() - animationStartTime) / 1000;
+
+        // Dibujar brazo de la catapulta con efecto de rebote
+        drawArmWithBounceEffect(ctx, pivotX, pivotY, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg);
 
         if (elapsedTime <= 5) {
             if (arrowAnimPhase === 0) {
@@ -671,3 +777,4 @@
 </script>
 </body>
 </html>
+```
