@@ -24,19 +24,19 @@
             height: 100%;
             max-width: 1485px;
             max-height: 580px;
-            cursor: none; /* Hide regular pointer */
+            cursor: default; /* Hide regular pointer: default is on, non is hidden */
         }
 
 
 #hand-cursor {
     position: absolute;
-    width: 25px; /* adjust size as needed */
-    height: 25px;
+    width: calc(25px * var(--pointerScale));
+    height: calc(25px * var(--pointerScale));
     pointer-events: none;
+    opacity: 0; /* Hide the HAND CURSOR UNTIL IT IS REPAIRED! */
     z-index: 999;
-    display: none; /* hidden by default, shown in-game */
-    transform: translate(-2px, +40px); /* adjust this to match your cursor tip */
 }
+
         canvas {
             position: absolute;
             top: 50%;
@@ -122,12 +122,12 @@
 </head>
 <body>
 <div id="game-container">
-    <canvas id="physicsCanvas" width="1481" height="700"></canvas>
+    <canvas id="physicsCanvas" width="1481" height="580"></canvas>
     <button id="reset-btn">Reset</button>
     <button id="move-left">&#x25C0;</button> <!-- ◀ -->
     <button id="move-right">&#x25B6;</button> <!-- ▶ -->
-    <img id="hand-cursor" src="https://static.wixstatic.com/media/a687f1_0911a368732d427e9e837d3007bbc84d~mv2.png" alt="Tutorial Hand">
-    <!-- --> <div id="display">Angle: 0, launchPower: 0</div>
+    <img id="hand-cursor" src="https://static.wixstatic.com/media/9c422e_64e254195ac142f287dc945c6d9db961~mv2.png" alt="Tutorial Hand">
+    <!-- <div id="display">Angle: 0, launchPower: 0</div> --> 
 </div>
 <script>
     const { Engine, Render, World, Bodies, Runner, Mouse, MouseConstraint, Events, Body, Constraint } = Matter;
@@ -144,12 +144,6 @@
     const canvas = document.getElementById('physicsCanvas');
     const handCursor = document.getElementById('hand-cursor');
 
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    handCursor.style.display = 'block';
-    handCursor.style.left = `${e.clientX - rect.left}px`;
-    handCursor.style.top = `${e.clientY - rect.top}px`;
-});
 
 canvas.addEventListener('mouseleave', () => {
     handCursor.style.display = 'none';
@@ -205,7 +199,10 @@ canvas.addEventListener('touchend', () => {
 
     if (launchPower > 5) {
         const rad = (90 - armAngle) * Math.PI / 180;
-        const velocityMagnitude = launchPower * 0.37; // same as mouse logic
+
+        const normalizedPower = launchPower / 100;
+        const velocityMagnitude = normalizedPower * canvas.width * 0.025; // or adjust multiplier - Same as mouse logic
+
 
         World.remove(world, rockConstraint);
         Body.setStatic(rockBody, false);
@@ -283,8 +280,12 @@ document.addEventListener('pointerup', () => {
             newHeight = newWidth / canvasAspect;
         }
 
+        const pointerScale = newHeight / 580; // Base height used for calibration of the MousePointer
+        document.documentElement.style.setProperty('--pointerScale', pointerScale);
+
         canvas.style.width = `${newWidth}px`;
         canvas.style.height = `${newHeight}px`;
+        
 
         // Adjust reset, left, and right buttons position
         resetBtn.style.top = `${20 / 580 * newHeight}px`;
@@ -403,7 +404,7 @@ gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
         // ALL THIS IS NEW! DELETE IF IT MESSES UP EVERYTHING
     const blockPhysics = {
     friction: 0.8,
-    frictionAir: 0.08,
+    frictionAir: 0.10,
     restitution: 0.05,
     angularDamping: 0.8
 };
@@ -497,7 +498,7 @@ gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
     images.wheel.src = 'https://static.wixstatic.com/media/a687f1_a1197c82d2e944dc9c1df1a265a79295~mv2.png';
     images.rock.src = 'https://static.wixstatic.com/media/a687f1_f56c6088025e41ab978fb22e6d792317~mv2.png';
     images.arrow.src = 'https://static.wixstatic.com/media/a687f1_db4fd2cab69c4bc8aa4b8ed3199a93d3~mv2.png';
-    images.tutorialHand.src = 'https://static.wixstatic.com/media/a687f1_0911a368732d427e9e837d3007bbc84d~mv2.png';
+    images.tutorialHand.src = 'https://static.wixstatic.com/media/9c422e_64e254195ac142f287dc945c6d9db961~mv2.png';
 
     // Configuración de la catapulta
     let catapultX = 100 * scaleX;
@@ -671,35 +672,44 @@ render.canvas.addEventListener('mousedown', (e) => {
     isDragging = true;
 });
 
-render.canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || !canShoot || dragStartX === null || dragStartY === null) return;
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
 
-    const rect = render.canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-       // MEASURE DISTANCE OF TOUCH
 
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
 
+    const internalX = screenX * scaleX;
+    const internalY = screenY * scaleY;
 
-    const currentX = (e.clientX - rect.left) * scaleX;
-    const currentY = (e.clientY - rect.top) * scaleY;
+    // Drag logic (physics)
+    if (isDragging && canShoot && dragStartX !== null && dragStartY !== null) {
+        const deltaX = internalX - dragStartX;
+        const deltaY = internalY - dragStartY;
+        const dragDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
 
-    const deltaX = currentX - dragStartX;
-const deltaY = currentY - dragStartY;
-const dragDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+        const maxDrag = canvas.width / 2;
+        const dragPercent = Math.min(dragDistance / maxDrag, 1);
 
-    // Set 50% of canvas width as max distance
-    const maxDrag = canvas.width / 2;
-    const dragPercent = Math.min(dragDistance / maxDrag, 1);
+        armAngle = minAngle + (maxAngle - minAngle) * dragPercent;
+        launchPower = calculateLaunchPower(armAngle);
 
-    armAngle = minAngle + (maxAngle - minAngle) * dragPercent;
-    launchPower = calculateLaunchPower(armAngle);
+        const newRockPos = getRockPosition();
+        Body.setPosition(rockBody, newRockPos);
+    }
 
+    // 🖱 Hand cursor
+    const displayScaleX = canvas.offsetWidth / canvas.width;
+    const displayScaleY = canvas.offsetHeight / canvas.height;
 
-    // Update rock visual during drag
-    const newRockPos = getRockPosition();
-    Body.setPosition(rockBody, newRockPos);
+handCursor.style.display = 'block';
+handCursor.style.left = `${internalX * displayScaleX}px`;
+handCursor.style.top = `${internalY * displayScaleY}px`;
+
 });
+
 
 render.canvas.addEventListener('mouseup', (e) => {
     if (!isDragging || !canShoot) return;
@@ -710,7 +720,10 @@ render.canvas.addEventListener('mouseup', (e) => {
 if (launchPower > 5) {
     const powerScale = 0.37; // Adjust this as needed
     const rad = (90 - armAngle) * Math.PI / 180;
-    const velocityMagnitude = launchPower * powerScale;
+    
+    const normalizedPower = launchPower / 100;
+    const velocityMagnitude = normalizedPower * canvas.width * 0.025; // or adjust multiplier - Same as mouse logic
+
     // Start visual arm reset animation
     isResettingArm = true;
     armResetSpeed = launchPower / 10; // adjust divisor to control speed feel
@@ -840,10 +853,10 @@ render.canvas.addEventListener('touchend', (e) => {
     const animationStartTime = performance.now();
 
     // Variables para la animación de la mano
-    //let handAnimTime = 0;
-    //const handAnimDuration = 7.6; // Duración de la animación en segundos
-    //let handAnimRepeatCount = 0;
-    //const maxHandAnimRepeats = 4; // Número de repeticiones de la animación
+    let handAnimTime = 0;
+    const handAnimDuration = 7.6; // Duración de la animación en segundos
+    let handAnimRepeatCount = 0;
+    const maxHandAnimRepeats = 2; // Número de repeticiones de la animación
 
         //Draw the trajectory of the stone.
  function drawTrajectory(ctx, startX, startY, angleDeg, power) {
@@ -926,7 +939,7 @@ if (isResettingArm) {
         drawArmWithBounceEffect(ctx, pivotX-5, pivotY-65, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg);
 
         //DISPLAU LOG
-         display.textContent = `armAngle: ${armAngle.toFixed(2)}, launchPower: ${launchPower.toFixed(2)}`;
+        // display.textContent = `armAngle: ${armAngle.toFixed(2)}, launchPower: ${launchPower.toFixed(2)}`;
 
         if (elapsedTime <= 5) {
             if (arrowAnimPhase === 0) {
