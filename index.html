@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Catapulta Mejorada</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.17.1/matter.min.js"></script>
     <style>
         body {
@@ -15,7 +15,7 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* Añadido para evitar acciones táctiles predeterminadas */
+            touch-action: none;
         }
         #game-container {
             position: relative;
@@ -23,48 +23,111 @@
             height: 100%;
             max-width: 1485px;
             max-height: 580px;
+            cursor: none; /* ❌ Hide regular pointer */
         }
+
+
+#hand-cursor {
+    position: absolute;
+    width: 25px; /* adjust size as needed */
+    height: 25px;
+    pointer-events: none;
+    z-index: 999;
+    display: none; /* hidden by default, shown in-game */
+    transform: translate(-2px, +40px); /* adjust this to match your cursor tip */
+}
         canvas {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            border-radius: 10px;
             max-width: 100%;
             max-height: 100%;
         }
-        #reset-btn {
-            position: absolute;
-            top: 5%;
-            right: 5%;
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            z-index: 100;
-            transform: scale(1);
-            transition: transform 0.3s ease;
+    
+    #move-left, #move-right {
+    position: absolute;
+    top: 5%;
+    padding: 10px 20px;
+    background: #FCD307;
+    color: black;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 16px;
+    z-index: 100;
+    transform: scale(1);
+    transition: transform 0.3s ease;
+}
+
+#move-left:hover,
+#move-right:hover {
+    transform: scale(1.05);
+    background: #FFBC00;
+}
+
+#move-left {
+    left: 3%;
+}
+
+#move-right {
+    left: 8%;
+}
+
+#reset-btn,
+#move-left,
+#move-right {
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    position: absolute;
+    z-index: 100;
+}
+
+#move-left.show,
+#move-right.show {
+    opacity: 1;
+}
+
+    #reset-btn {
+    top: 5%;
+    right: 5%;
+    padding: 10px 20px;
+    background: #FCD307;
+    color: black;
+    border: none;
+    border-radius: 15px;
+    font-size: 16px;
+    position: absolute;  /* ← this is the key line */
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    z-index: 100;
         }
         #reset-btn:hover {
-            background: #45a049;
+            background: #FFBC00;
             transform: scale(1.05);
         }
+
+    #reset-btn.show {
+    opacity: 1;
+}
+
     </style>
 </head>
 <body>
 <div id="game-container">
-    <canvas id="physicsCanvas" width="1485" height="580"></canvas>
-    <button id="reset-btn">Reiniciar</button>
+    <canvas id="physicsCanvas" width="1481" height="700"></canvas>
+    <button id="reset-btn">Reset</button>
+    <button id="move-left">&#x25C0;</button> <!-- ◀ -->
+<button id="move-right">&#x25B6;</button> <!-- ▶ -->
+    <img id="hand-cursor" src="https://static.wixstatic.com/media/a687f1_0911a368732d427e9e837d3007bbc84d~mv2.png" alt="Tutorial Hand">
+    <!--<div id="display">Angle: 0, launchPower: 0</div>-->
 </div>
 <script>
     const { Engine, Render, World, Bodies, Runner, Mouse, MouseConstraint, Events, Body, Constraint } = Matter;
 
     // Factores de escala
-    const scaleX = 1485 / 900;
-    const scaleY = 580 / 650;
+    const scaleX = 1;
+    const scaleY = 0.6;
     const scaleAvg = (scaleX + scaleY) / 2 * 0.8;
 
     const engine = Engine.create();
@@ -72,8 +135,57 @@
     engine.world.gravity.y = 1 * scaleY;
 
     const canvas = document.getElementById('physicsCanvas');
+    const handCursor = document.getElementById('hand-cursor');
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    handCursor.style.display = 'block';
+    handCursor.style.left = `${e.clientX - rect.left}px`;
+    handCursor.style.top = `${e.clientY - rect.top}px`;
+});
+
+canvas.addEventListener('mouseleave', () => {
+    handCursor.style.display = 'none';
+});
+
+canvas.addEventListener('touchstart', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    handCursor.style.display = 'block';
+    handCursor.style.left = `${touch.clientX - rect.left}px`;
+    handCursor.style.top = `${touch.clientY - rect.top}px`;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    handCursor.style.left = `${touch.clientX - rect.left}px`;
+    handCursor.style.top = `${touch.clientY - rect.top}px`;
+});
+
+canvas.addEventListener('touchend', () => {
+    handCursor.style.display = 'none';
+});
+
     const gameContainer = document.getElementById('game-container');
     const resetBtn = document.getElementById('reset-btn');
+    const moveLeftBtn = document.getElementById('move-left');
+    const moveRightBtn = document.getElementById('move-right');
+ 
+    // Clean and unified pointer events
+moveLeftBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    keysPressed['ArrowLeft'] = true;
+});
+moveRightBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    keysPressed['ArrowRight'] = true;
+});
+
+document.addEventListener('pointerup', () => {
+    keysPressed['ArrowLeft'] = false;
+    keysPressed['ArrowRight'] = false;
+});
 
     function resizeCanvas() {
         const containerWidth = gameContainer.clientWidth;
@@ -102,6 +214,7 @@
         resetBtn.style.padding = `${10 / 580 * newHeight}px ${20 / 1485 * newWidth}px`;
     }
 
+
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
@@ -116,17 +229,60 @@
         }
     });
 
-    // Create gradient for ground
-    const ctx = render.context;
-    const gradient = ctx.createLinearGradient(0, 580, 0, 580 - 30 * scaleY);
-    gradient.addColorStop(0, '#bdc3c7');
-    gradient.addColorStop(1, '#7f8c8d');
+ // Create gradient for ground (más grueso y con mejor degradado)
+const ctx = render.context;
+const groundHeight = 150 * scaleY; // Ajusta la altura del suelo según sea necesario
+const gradient = ctx.createLinearGradient(0, 580, 0, 580 - groundHeight);
+
+// Ajusta los colores para que las transiciones sean más notables y el blanco más pronunciado
+gradient.addColorStop(0, '#FFFFFF'); // Blanco puro al inicio
+gradient.addColorStop(0.3, '#E0E0E0'); // Gris claro
+gradient.addColorStop(0.6, '#C0C0C0'); // Gris medio oscuro
+gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
 
     // Elementos estáticos
-    const ground = Bodies.rectangle(742.5, 570, 1485, 30 * scaleY, { isStatic: true, render: { fillStyle: gradient } });
-    const leftWall = Bodies.rectangle(0, 290, 30 * scaleX, 580, { isStatic: true, render: { fillStyle: '#bdc3c7' } });
-    const rightWall = Bodies.rectangle(1485, 290, 30 * scaleX, 580, { isStatic: true, render: { fillStyle: '#bdc3c7' } });
-    World.add(world, [ground]);
+    const ground = Bodies.rectangle(742.5, 580 - groundHeight/3, 1485, groundHeight, { 
+        isStatic: true, 
+        render: { fillStyle: gradient },
+        friction: 0.3,
+        restitution: 0.2,
+        chamfer: { radius: 0 }
+    });
+    
+    const leftWall = Bodies.rectangle(0, 290, 30 * scaleX, 580, { isStatic: true, render: { fillStyle: '#2c3e50' } });
+    const rightWall = Bodies.rectangle(1485, 290, 30 * scaleX, 580, { isStatic: true, render: { fillStyle: '#2c3e50' } });
+    
+    // Crear el pico con colisión - ahora solo muestra la punta
+    const spikeWidth = 30 * scaleX;  // Ancho base del triángulo
+    const spikeHeight = 80 * scaleY; // Altura del triángulo
+    const spikePeekHeight = 20 * scaleY; // Altura visible de la punta
+    
+    // Creamos un polígono triangular más grande para la colisión
+    const spikeCollider = Bodies.polygon(680, 633 - groundHeight - spikeHeight/2, 6, spikeWidth * 0.9, {
+        isStatic: true,
+        render: {
+            visible: false // Lo hacemos invisible
+        },
+        friction: 0.1,
+        restitution: 0.5,
+        chamfer: { radius: 0 }
+    });
+    
+    // Rotamos el pico 180 grados para que apunte hacia arriba
+    Body.rotate(spikeCollider, Math.PI);
+    
+    // Creamos un pequeño triángulo visible (solo la punta)
+    const spikeVisible = Bodies.trapezoid(680.5, 597 - groundHeight - spikePeekHeight/2, spikeWidth * 1.1, spikePeekHeight, 0.8, {
+        isStatic: true,
+        render: {
+            fillStyle: '#808080',
+            strokeStyle: '#000000',
+            lineWidth: 0
+        },
+        isSensor: true // No tiene colisión física
+    });
+
+    World.add(world, [ground, spikeCollider, spikeVisible]);
 
     // Variables para los bloques
     let baseBlocks = [];
@@ -142,7 +298,7 @@
         const strokeColor = '#000000';
         const blockWidth = 23 * scaleX;
         const blockHeight = 130 * scaleY;
-        const baseX = 1070;
+        const baseX = 1270;
         const baseY = 100;
         const spacing = 70 * scaleX;
 
@@ -214,11 +370,14 @@
         }
     });
 
+    // MOUSE SETTINGS
+    let isDragging = false;
     const mouse = Mouse.create(render.canvas);
     const mouseConstraint = MouseConstraint.create(engine, {
         mouse: mouse,
         constraint: {
-            stiffness: 0.2,
+            stiffness: 0.1,
+            angularStiffness: 0.08, 
             render: { visible: false }
         }
     });
@@ -242,21 +401,22 @@
 
     // Configuración de la catapulta
     let catapultX = 100 * scaleX;
-    const catapultY = 490;
-    const pivotYOffset = 3 * scaleY;
-    let pivotX = catapultX + 30 * scaleX;
-    const pivotY = catapultY - 20 * scaleY;
-    const armLength = 140 * scaleAvg;
-    const spoonOffsetX = 120 * scaleAvg;
-    const spoonOffsetY = 20 * scaleAvg;
+    const catapultY = 452;
+  //const pivotYOffset = 3 * scaleY;
+  let pivotX = catapultX + 30 * scaleX;
+  const pivotY = catapultY + 50 * scaleY;
+  const armLength = 200 * scaleAvg;
+  //const spoonOffsetX = 120 * scaleAvg;
+  //const spoonOffsetY = 20 * scaleAvg;
 
     const rockRadius = 9 * scaleAvg;
 
-    let isDragging = false;
-    let launchPower = 0;
-    let armAngle = 120;
-    const minAngle = -45;
-    const maxAngle = 100;
+    let armAngle = 90;
+    const minAngle = 90;
+    const maxAngle = 0;
+
+    let rockLaunched = false;
+    let hasResetTimerStarted = false;
 
     // Zonas de fuerza
     const minForceRadius = 50 * scaleAvg;
@@ -264,6 +424,8 @@
     const maxForceRadius = 150 * scaleAvg;
 
     let isBouncing = false;
+    let isResettingArm = false;
+    let armResetSpeed = 0;
     let bounceStartTime = 0;
     let bounceAmplitude = 45 * scaleAvg;
     const bounceDecay = 4;
@@ -273,16 +435,22 @@
     let canShoot = true;
     let reloadTimeout;
 
-    function getRockPosition() {
-        const rad = (90 + armAngle) * Math.PI / 180;
-        const spoonTipX = pivotX + Math.cos(rad) * (armLength - 30 * scaleAvg) + 16 * scaleX;
-        const spoonTipY = pivotY + Math.sin(rad) * (armLength - 30 * scaleAvg) + 20 * scaleY;
+  function getRockPosition() {
+    const rad = (-180 + armAngle) * Math.PI / 180;
 
-        return {
-            x: spoonTipX,
-            y: spoonTipY
-        };
+    // Clamp values just in case
+    const angle = isNaN(armAngle) ? 90 : Math.max(0, Math.min(90, armAngle));
+
+    const x = pivotX + Math.cos(rad) * (armLength - 57 * scaleAvg) + 7 * scaleX;
+    const y = pivotY + Math.sin(rad) * (armLength - 57 * scaleAvg);
+
+    // Safety: Check if rock will end up off screen
+    if (x < 0 || y < 0 || x > canvas.width || y > canvas.height) {
+        console.warn("getRockPosition() returned off-screen values", { x, y, angle });
     }
+
+    return { x, y };
+}
 
     let rockStartPos = getRockPosition();
 
@@ -290,7 +458,7 @@
         isStatic: true,
         density: 0.09,
         restitution: 0.3,
-        frictionAir: 0.018,
+        frictionAir: 0.005,
         render: {
             sprite: {
                 texture: images.rock.src,
@@ -313,7 +481,7 @@
     World.add(world, rockConstraint);
 
     const moveSpeed = 5 * scaleX;
-    const leftLimit = 40 * scaleX;
+    const leftLimit = 60 * scaleX;
     const rightLimit = 650 - 50 * scaleX; // Limitar hasta el primer pico del triángulo
 
     const keysPressed = {};
@@ -347,39 +515,6 @@
         }
     }
 
-    function drawTrajectory(ctx, startX, startY, velocityX, velocityY) {
-        const points = [];
-        let x = startX;
-        let y = startY;
-        let vx = velocityX;
-        let vy = velocityY;
-        const gravity = engine.world.gravity.y * 1.5;
-
-        for (let t = 0; t < 60; t += 2) {
-            x = startX + vx * t;
-            y = startY + vy * t + 0.5 * gravity * t * t;
-            if (y > render.options.height) break;
-            points.push({ x, y });
-        }
-
-        if (points.length < 2) return;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
-        ctx.lineWidth = 3 * scaleAvg;
-
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
-        }
-
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-    }
-
     function resetRock() {
         rockStartPos = getRockPosition();
         Body.setPosition(rockBody, rockStartPos);
@@ -397,20 +532,12 @@
         });
         World.add(world, rockConstraint);
 
-        armAngle = 80;
+        armAngle = 0;
     }
 
     function resetGame() {
-        catapultX = 100 * scaleX;
-        pivotX = catapultX + 30 * scaleX;
-        wheelRotation = 0;
-
-        resetRock();
-        canShoot = true;
-        clearTimeout(reloadTimeout);
-
-        createBlocks();
-    }
+    location.reload(); // Full restart of the game
+}
 
     resetBtn.addEventListener('click', resetGame);
 
@@ -420,241 +547,207 @@
     const maxFades = 3;
     let arrowAnimPhase = 0;
 
-    // Función para manejar eventos táctiles
-    function handleTouch(e, handler) {
-        const rect = render.canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const touch = e.touches[0];
-        const mouseX = (touch.clientX - rect.left) * scaleX;
-        const mouseY = (touch.clientY - rect.top) * scaleY;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let launchPower = 0;
 
-        handler({ clientX: mouseX, clientY: mouseY });
-        e.preventDefault();
-    }
+    function calculateLaunchPower(angle) {
+    const clampedAngle = Math.max(Math.min(angle, 90), 0); // Ensure angle is between 0 and 90
+    return ((90 - clampedAngle) / 90) * 100;
+}
 
-    // Función para manejar el inicio del tacto
-    function handleTouchStart(e) {
-        handleTouch(e, (pos) => {
-            if (!canShoot) return;
-            const rockPos = getRockPosition();
-            const distToRock = Math.hypot(pos.clientX - rockPos.x, pos.clientY - rockPos.y);
-            if (distToRock < 50 * scaleAvg) {
-                isDragging = true;
-            }
-        });
-    }
 
-    // Función para manejar el movimiento táctil
-    function handleTouchMove(e) {
-        handleTouch(e, (pos) => {
-            if (!isDragging || !canShoot) return;
-            const dx = pos.clientX - pivotX;
-            const dy = pivotY - pos.clientY;
 
-            let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-            angle = Math.max(minAngle, Math.min(maxAngle, angle));
-            armAngle = angle;
+render.canvas.addEventListener('mousedown', (e) => {
+    if (!canShoot) return;
 
-            const distance = Math.sqrt(dx * dx + dy * dy);
+    const rect = render.canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
 
-            if (distance <= minForceRadius) {
-                launchPower = 20;
-            } else if (distance <= midForceRadius) {
-                launchPower = 20 + ((distance - minForceRadius) / (midForceRadius - minForceRadius)) * 40;
-            } else if (distance <= maxForceRadius) {
-                launchPower = 60 + ((distance - midForceRadius) / (maxForceRadius - midForceRadius)) * 40;
-            } else {
-                launchPower = 100;
-            }
+    dragStartX = (e.clientX - rect.left) * scaleX;
+    dragStartY = (e.clientY - rect.top) * scaleY;
 
-            const newRockPos = getRockPosition();
-            Body.setPosition(rockBody, newRockPos);
-        });
-    }
+    isDragging = true;
+});
 
-    // Función para manejar el fin del tacto
-    function handleTouchEnd(e) {
-        if (!isDragging || !canShoot) return;
-        isDragging = false;
+render.canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || !canShoot || dragStartX === null || dragStartY === null) return;
 
-        if (launchPower > 5) {
-            const rad = (90 - armAngle) * Math.PI / 180;
-            const speed = launchPower / 5;
+    const rect = render.canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+       // MEASURE DISTANCE OF TOUCH
 
-            World.remove(world, rockConstraint);
-            Body.setStatic(rockBody, false);
 
-            Body.setVelocity(rockBody, {
-                x: Math.cos(rad) * speed * 1.5 * scaleX,
-                y: -Math.sin(rad) * speed * 1.5 * scaleY
-            });
 
-            isBouncing = true;
-            bounceStartTime = performance.now();
-            bounceAmplitude = 45 * scaleAvg;
+    const currentX = (e.clientX - rect.left) * scaleX;
+    const currentY = (e.clientY - rect.top) * scaleY;
 
-            canShoot = false;
-            clearTimeout(reloadTimeout);
-            reloadTimeout = setTimeout(() => {
-                resetRock();
-                canShoot = true;
-            }, 1900);
-        } else {
-            const newRockPos = getRockPosition();
-            Body.setPosition(rockBody, newRockPos);
+    const deltaX = currentX - dragStartX;
+const deltaY = currentY - dragStartY;
+const dragDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
 
-            if (!world.constraints.includes(rockConstraint)) {
-                World.add(world, rockConstraint);
-            }
+    // Set 50% of canvas width as max distance
+    const maxDrag = canvas.width / 2;
+    const dragPercent = Math.min(dragDistance / maxDrag, 1);
 
-            armAngle = 0;
-            launchPower = 0;
-        }
-        e.preventDefault();
-    }
+    armAngle = minAngle + (maxAngle - minAngle) * dragPercent;
+    launchPower = calculateLaunchPower(armAngle);
 
-    // Añadir listeners para eventos táctiles
-    render.canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    render.canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    render.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 
-    // Manejadores de eventos del ratón
-    render.canvas.addEventListener('mousedown', (e) => {
-        if (!canShoot) return;
+    // Update rock visual during drag
+    const newRockPos = getRockPosition();
+    Body.setPosition(rockBody, newRockPos);
+});
 
-        const rect = render.canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const mouseX = (e.clientX - rect.left) * scaleX;
-        const mouseY = (e.clientY - rect.top) * scaleY;
+render.canvas.addEventListener('mouseup', (e) => {
+    if (!isDragging || !canShoot) return;
+    isDragging = false;
+    dragStartX = null;
+    dragStartY = null;
 
-        const rockPos = getRockPosition();
-        const distToRock = Math.hypot(mouseX - rockPos.x, mouseY - rockPos.y);
+if (launchPower > 5) {
+    const powerScale = 0.37; // Adjust this as needed
+    const rad = (90 - armAngle) * Math.PI / 180;
+    const velocityMagnitude = launchPower * powerScale;
+    // Start visual arm reset animation
+    isResettingArm = true;
+    armResetSpeed = launchPower / 10; // adjust divisor to control speed feel
 
-        if (distToRock < 50 * scaleAvg) {
-            isDragging = true;
-        }
+
+    World.remove(world, rockConstraint);
+    Body.setStatic(rockBody, false);
+
+    if (!rockLaunched) {
+    rockLaunched = true;
+
+    setTimeout(() => {
+        resetBtn.classList.add('show');
+        moveLeftBtn.classList.add('show');
+        moveRightBtn.classList.add('show');
+    }, 3000); // Show Reset button after 3 seconds
+}
+
+    Body.setVelocity(rockBody, {
+        x: Math.cos(rad) * velocityMagnitude * scaleX,
+        y: -Math.sin(rad) * velocityMagnitude * scaleY
     });
 
-    render.canvas.addEventListener('mousemove', (e) => {
-        if (!isDragging || !canShoot) return;
+    isBouncing = true;
+    bounceStartTime = performance.now();
+    bounceAmplitude = 45 * scaleAvg;
 
-        const rect = render.canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const mouseX = (e.clientX - rect.left) * scaleX;
-        const mouseY = (e.clientY - rect.top) * scaleY;
-
-        const dx = mouseX - pivotX;
-        const dy = pivotY + mouseY;
-
-        let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        angle = Math.max(minAngle, Math.min(maxAngle, angle));
-        armAngle = angle;
-
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance <= minForceRadius) {
-            launchPower = 20;
-        } else if (distance <= midForceRadius) {
-            launchPower = 20 + ((distance - minForceRadius) / (midForceRadius - minForceRadius)) * 40;
-        } else if (distance <= maxForceRadius) {
-            launchPower = 60 + ((distance - midForceRadius) / (maxForceRadius - midForceRadius)) * 40;
-        } else {
-            launchPower = 100;
-        }
-
+    canShoot = false;
+    clearTimeout(reloadTimeout);
+    reloadTimeout = setTimeout(() => {
+        resetRock();
+        canShoot = true;
+    }, 4000);
+    } else {
         const newRockPos = getRockPosition();
         Body.setPosition(rockBody, newRockPos);
-    });
 
-    render.canvas.addEventListener('mouseup', (e) => {
-        if (!isDragging || !canShoot) return;
-        isDragging = false;
-
-        if (launchPower > 5) {
-            const rad = (90 - armAngle) * Math.PI / 180;
-            const speed = launchPower / 5;
-
-            World.remove(world, rockConstraint);
-            Body.setStatic(rockBody, false);
-
-            Body.setVelocity(rockBody, {
-                x: Math.cos(rad) * speed * 1.5 * scaleX,
-                y: -Math.sin(rad) * speed * 1.5 * scaleY
-            });
-
-            isBouncing = true;
-            bounceStartTime = performance.now();
-            bounceAmplitude = 45 * scaleAvg;
-
-            canShoot = false;
-            clearTimeout(reloadTimeout);
-            reloadTimeout = setTimeout(() => {
-                resetRock();
-                canShoot = true;
-            }, 1900);
-        } else {
-            const newRockPos = getRockPosition();
-            Body.setPosition(rockBody, newRockPos);
-
-            if (!world.constraints.includes(rockConstraint)) {
-                World.add(world, rockConstraint);
-            }
-
-            armAngle = 0;
-            launchPower = 0;
+        if (!world.constraints.includes(rockConstraint)) {
+            World.add(world, rockConstraint);
         }
-    });
 
-    let tutorialHandAngle = 0;
+        armAngle = 0;
+        launchPower = 0;
+    }
+});
+
+
+    //let tutorialHandAngle = 0;
     const animationStartTime = performance.now();
 
     // Variables para la animación de la mano
-    let handAnimTime = 0;
-    const handAnimDuration = 7.6; // Duración de la animación en segundos
-    let handAnimRepeatCount = 0;
-    const maxHandAnimRepeats = 4; // Número de repeticiones de la animación
+    //let handAnimTime = 0;
+    //const handAnimDuration = 7.6; // Duración de la animación en segundos
+    //let handAnimRepeatCount = 0;
+    //const maxHandAnimRepeats = 4; // Número de repeticiones de la animación
 
-    // Función para dibujar el brazo con efecto de rebote
-    function drawArmWithBounceEffect(ctx, pivotX, pivotY, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg) {
-        const rad = (90 - armAngle) * Math.PI / 180;
+        //Draw the trajectory of the stone.
+ function drawTrajectory(ctx, startX, startY, angleDeg, power) {
+    const rad = (90 - angleDeg) * Math.PI / 180;
+    const speed = (power / 100) * 50; // adjust if needed
 
-        if (isBouncing) {
-            const bounceTime = (performance.now() - bounceStartTime) / 1000;
-            const bounceEffect = bounceAmplitude * Math.sin(bounceTime * bounceFrequency) * Math.exp(-bounceTime * bounceDecay);
-            const bounceAngle = bounceEffect * Math.PI / 180;
-            ctx.save();
-            ctx.translate(pivotX, pivotY);
-            ctx.rotate(-rad + bounceAngle);
-            const armWidth = armLength;
-            const armHeight = 40 * scaleAvg;
-            ctx.drawImage(images.arm, -armWidth +23 * scaleAvg, -armHeight / -3, armWidth, armHeight);
-            ctx.restore();
+    let x = startX;
+    let y = startY;
 
-            if (Math.abs(bounceEffect) < 0.1) {
-                isBouncing = false;
-            }
-        } else {
-            ctx.save();
-            ctx.translate(pivotX, pivotY);
-            ctx.rotate(-rad);
-            const armWidth = armLength;
-            const armHeight = 40 * scaleAvg;
-            ctx.drawImage(images.arm, -armWidth + 40 * scaleAvg, -armHeight / -3, armWidth, armHeight);
-            ctx.restore();
-        }
+    const vx = Math.cos(rad) * speed;
+    const vy = -Math.sin(rad) * speed;
+
+    const gravity = engine.world.gravity.y * 60 * 60; // pixels/sec²
+    const timeStep = 1 / 60;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.strokeStyle = '#FFBC00';
+    ctx.globalAlpha = 0.2; 
+    ctx.lineWidth = 3;
+
+    for (let i = 0; i < 10; i++) {
+        const t = i * timeStep;
+        const dx = vx * t * 60;
+        const dy = vy * t * 60 + 0.5 * gravity * t * t;
+        ctx.lineTo(x + dx, y + dy);
     }
+
+    ctx.stroke();
+    ctx.restore();
+}
+
+
+    function drawArmWithBounceEffect(ctx, pivotX, pivotY, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images) {
+    const rad = (90 - armAngle) * Math.PI / 180;
+
+    let bounceAngle = 0;
+    if (isBouncing) {
+        const bounceTime = (performance.now() - bounceStartTime) / 1000;
+        const bounceEffect = bounceAmplitude * Math.sin(bounceTime * bounceFrequency) * Math.exp(-bounceTime * bounceDecay);
+        bounceAngle = bounceEffect * Math.PI / 180;
+    }
+
+ctx.save();
+ctx.translate(pivotX + 10, pivotY + 65); // Tweak until it matches exactly
+ctx.rotate((armAngle + 0) * Math.PI / 180);      // rotate: add +90 to make image point vertically
+
+const fixedWidth = 160 * 0.8;
+const fixedHeight = 55 * 0.8;
+
+// Fine-tuned adjustment:
+const imageOffsetX = -110; // push image left so cog sits on pivot (adjust until it fits visually)
+const imageOffsetY = -fixedHeight / 2;
+
+
+// Draw the image so its right edge is at (0, 0)
+ctx.drawImage(images.arm, imageOffsetX, imageOffsetY, fixedWidth, fixedHeight);
+ctx.restore();
+
+}
 
     Events.on(render, 'afterRender', () => {
         const ctx = render.context;
         updateCatapultPosition();
 
+        
+
         const elapsedTime = (performance.now() - animationStartTime) / 1000;
 
-        // Dibujar brazo de la catapulta con efecto de rebote
-        drawArmWithBounceEffect(ctx, pivotX, pivotY, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg);
+      // Visual animation: arm rotates back toward 90°
+if (isResettingArm) {
+    if (armAngle < 90) {
+        armAngle += armResetSpeed;
+        if (armAngle > 90) armAngle = 90;
+    } else {
+        isResettingArm = false; // Stop animation
+    }
+}
+        drawArmWithBounceEffect(ctx, pivotX-5, pivotY-65, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg);
+
+        //display.textContent = `armAngle: ${armAngle.toFixed(2)}, launchPower: ${launchPower.toFixed(2)}`;
 
         if (elapsedTime <= 5) {
             if (arrowAnimPhase === 0) {
@@ -676,19 +769,19 @@
             }
 
             // Draw left arrow with fading and moving effect
-            ctx.save();
-            ctx.globalAlpha = 1 - (fadeCount * 0.3);
-            ctx.translate(catapultX - 100 * scaleX - arrowAnimOffset, catapultY - 110 * scaleY);
-            ctx.scale(-1, 1);
-            ctx.drawImage(images.arrow, -120 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
-            ctx.restore();
+              //ctx.save();
+              //ctx.globalAlpha = 1 - (fadeCount * 0.3);
+              //ctx.translate(catapultX - 100 * scaleX - arrowAnimOffset, catapultY - 110 * scaleY);
+              //ctx.scale(-1, 1);
+              //ctx.drawImage(images.arrow, -120 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
+              //ctx.restore();
 
             // Draw right arrow with fading and moving effect
-            ctx.save();
-            ctx.globalAlpha = 1 - (fadeCount * 0.3);
-            ctx.translate(catapultX + 100 * scaleX + arrowAnimOffset, catapultY - 110 * scaleY);
-            ctx.drawImage(images.arrow, -30 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
-            ctx.restore();
+              // ctx.save();
+              // ctx.globalAlpha = 1 - (fadeCount * 0.3);
+              //ctx.translate(catapultX + 100 * scaleX + arrowAnimOffset, catapultY - 110 * scaleY);
+              // ctx.drawImage(images.arrow, -30 * scaleAvg, 90 * scaleAvg, 60 * scaleAvg, 60 * scaleAvg);
+              // ctx.restore();
         }
 
         // Dibujar base de la catapulta
@@ -699,22 +792,30 @@
         // Dibujar ruedas
         const wheelSize = 48 * scaleAvg;
         ctx.save();
-        ctx.translate(catapultX + 40 * scaleX + wheelSize / 2, catapultY + 30 * scaleY + wheelSize / 2);
+        ctx.translate(catapultX + 40 * scaleX + wheelSize / 2, catapultY + 40 * scaleY + wheelSize / 2);
         ctx.rotate(wheelRotation);
         ctx.drawImage(images.wheel, -wheelSize / 2, -wheelSize / 2, wheelSize, wheelSize);
         ctx.restore();
 
         ctx.save();
-        ctx.translate(catapultX - 30 * scaleX + wheelSize / 2, catapultY + 30 * scaleY + wheelSize / 2);
+        ctx.translate(catapultX - 30 * scaleX + wheelSize / 2, catapultY + 40 * scaleY + wheelSize / 2);
         ctx.rotate(wheelRotation);
         ctx.drawImage(images.wheel, -wheelSize / 2, -wheelSize / 2, wheelSize, wheelSize);
         ctx.restore();
 
         // Actualizar posición de la roca si está estática
-        if (rockBody.isStatic) {
-            const newRockPos = getRockPosition();
-            Body.setPosition(rockBody, newRockPos);
-        }
+   if (rockBody.isStatic) {
+    const newRockPos = getRockPosition();
+    Body.setPosition(rockBody, newRockPos);
+
+    if (isDragging) {
+        const rockX = rockBody.position.x;
+        const rockY = rockBody.position.y;
+        drawTrajectory(ctx, rockX, rockY, armAngle, launchPower);
+    }
+}
+
+
 
         // Dibujar la mano tutorial con animación arqueada
         if (handAnimRepeatCount < maxHandAnimRepeats) {
@@ -740,41 +841,72 @@
             ctx.restore();
         }
 
-        if (isDragging && canShoot) {
-            const speed = launchPower / 5;
-            const rad = (90 - armAngle) * Math.PI / 180;
-            const velocityX = Math.cos(rad) * speed * 1.5 * scaleX;
-            const velocityY = -Math.sin(rad) * speed * 1.5 * scaleY;
-
-            drawTrajectory(ctx, getRockPosition().x, getRockPosition().y, velocityX, velocityY);
-        }
-
         // Mostrar indicador de recarga
-        if (!canShoot) {
-            ctx.save();
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.font = `bold ${40 * scaleAvg}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('...', pivotX, pivotY - 50 * scaleAvg);
-            ctx.restore();
-        }
+       // if (!canShoot) {
+          //  ctx.save();
+           // ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+           // ctx.font = `bold ${40 * scaleAvg}px Arial`;
+           // ctx.textAlign = 'center';
+           // ctx.fillText('...', pivotX, pivotY - 50 * scaleAvg);
+            //ctx.restore();
+       // }
 
-        // Dibujar el triángulo en frente de todo
-        ctx.save();
-        ctx.translate(742.5, 570 - 15 * scaleY);
-        ctx.fillStyle = '#808080';
-        ctx.beginPath();
-        ctx.moveTo(40 * scaleX, 0);
-        ctx.lineTo(0, -40 * scaleY);
-        ctx.lineTo(-40 * scaleX, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+
+        // Dibujar un círculo rojo en la posición de la catapulta - USED FOR CALIBRATION
+        //ctx.save();
+        //ctx.fillStyle = 'red';
+        //ctx.beginPath();
+        //ctx.arc(catapultX + 79, catapultY+46, 10, 0, Math.PI * 2); // Radio del círculo es 10
+        //ctx.fill();
+        //ctx.restore();
+  
+    // Dibujar un círculo verde en la posición de PivotX
+        //ctx.save();
+        //ctx.fillStyle = 'green';
+        //ctx.beginPath();
+        //ctx.arc(pivotX, pivotY, 10, 0, Math.PI * 2); // Radio del círculo es 10
+        //ctx.fill();
+        //ctx.restore();
+  
+// Draw a thin rectangle that rotates around pivot like a clock hand - USED FOR CALIBRATION: Make it transparent when not calibrating
+ctx.save();
+ctx.translate(pivotX, pivotY); // Set rotation pivot point
+ctx.rotate(armAngle * Math.PI / 180); // Convert angle to radians, rotate clockwise
+ctx.fillStyle = 'black';
+ctx.globalAlpha = 0; // 0 is fully transparent, 1 is fully opaque
+// Draw a rectangle where the RIGHT TIP touches pivot
+const rectLength = 150 * scaleAvg;
+const rectThickness = 20 * scaleAvg;
+ctx.fillRect(-rectLength, -rectThickness / 2, rectLength, rectThickness); 
+ctx.restore();
+  
+  function getReferencePoint() {
+    return {
+        x: catapultX + 59,
+        y: catapultY + 46
+    };
+}
+  
+ const ref = {
+    x: catapultX + 59,
+    y: catapultY + 46
+};
+
+// Blue circle 50px to the right
+//ctx.save();
+//ctx.fillStyle = 'blue';
+//ctx.globalAlpha = 0.3;
+//ctx.beginPath();
+//ctx.arc(pivotX, pivotY, 145, 0, Math.PI * 2);
+//ctx.fill();
+//ctx.restore(); 
     });
+  
+
+  //NOTHIGN AFTER HERE !!!
 
     Runner.run(engine);
     Render.run(render);
 </script>
 </body>
 </html>
-
