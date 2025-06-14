@@ -657,6 +657,81 @@ if (launchPower > 5) {
     }
 });
 
+// Touch START = like mousedown
+render.canvas.addEventListener('touchstart', (e) => {
+    if (!canShoot) return;
+    const rect = render.canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const touchX = (touch.clientX - rect.left) * scaleX;
+    const touchY = (touch.clientY - rect.top) * scaleY;
+
+    isDragging = true;
+});
+
+// Touch MOVE = like mousemove
+render.canvas.addEventListener('touchmove', (e) => {
+    if (!isDragging || !canShoot) return;
+    const rect = render.canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const touchX = (touch.clientX - rect.left) * scaleX;
+    const touchY = (touch.clientY - rect.top) * scaleY;
+
+    const dx = touchX - pivotX;
+    const dy = pivotY - touchY;
+
+    let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    angle = Math.max(minAngle, Math.min(maxAngle, angle));
+    armAngle = angle;
+
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    launchPower = Math.min(distance / (canvas.width * 0.5) * 100, 100);
+
+    const newRockPos = getRockPosition();
+    Body.setPosition(rockBody, newRockPos);
+});
+
+// Touch END = like mouseup
+render.canvas.addEventListener('touchend', (e) => {
+    if (!isDragging || !canShoot) return;
+    isDragging = false;
+
+    if (launchPower > 5) {
+        const rad = (90 - armAngle) * Math.PI / 180;
+        const speed = launchPower / 5;
+
+        World.remove(world, rockConstraint);
+        Body.setStatic(rockBody, false);
+        Body.setVelocity(rockBody, {
+            x: Math.cos(rad) * speed * scaleX,
+            y: -Math.sin(rad) * speed * scaleY
+        });
+
+        isBouncing = true;
+        bounceStartTime = performance.now();
+        bounceAmplitude = 45 * scaleAvg;
+
+        canShoot = false;
+        clearTimeout(reloadTimeout);
+        reloadTimeout = setTimeout(() => {
+            resetRock();
+            canShoot = true;
+        }, 1900);
+    } else {
+        const newRockPos = getRockPosition();
+        Body.setPosition(rockBody, newRockPos);
+        if (!world.constraints.includes(rockConstraint)) {
+            World.add(world, rockConstraint);
+        }
+
+        armAngle = 0;
+        launchPower = 0;
+    }
+});
+
 
     //let tutorialHandAngle = 0;
     const animationStartTime = performance.now();
