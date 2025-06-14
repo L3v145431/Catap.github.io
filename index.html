@@ -120,7 +120,7 @@
     <button id="move-left">&#x25C0;</button> <!-- ◀ -->
 <button id="move-right">&#x25B6;</button> <!-- ▶ -->
     <img id="hand-cursor" src="https://static.wixstatic.com/media/a687f1_0911a368732d427e9e837d3007bbc84d~mv2.png" alt="Tutorial Hand">
-    <!--<div id="display">Angle: 0, launchPower: 0</div>-->
+    <!-- --> <div id="display">Angle: 0, launchPower: 0</div>
 </div>
 <script>
     const { Engine, Render, World, Bodies, Runner, Mouse, MouseConstraint, Events, Body, Constraint } = Matter;
@@ -149,22 +149,90 @@ canvas.addEventListener('mouseleave', () => {
 });
 
 canvas.addEventListener('touchstart', (e) => {
-    const rect = canvas.getBoundingClientRect();
+   if (!canShoot) return;
+    const rect = render.canvas.getBoundingClientRect();
     const touch = e.touches[0];
-    handCursor.style.display = 'block';
-    handCursor.style.left = `${touch.clientX - rect.left}px`;
-    handCursor.style.top = `${touch.clientY - rect.top}px`;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    dragStartX = (touch.clientX - rect.left) * scaleX;
+    dragStartY = (touch.clientY - rect.top) * scaleY;
+
+    isDragging = true;
 });
 
 canvas.addEventListener('touchmove', (e) => {
-    const rect = canvas.getBoundingClientRect();
+    if (!isDragging || !canShoot || dragStartX === null || dragStartY === null) return;
+    const rect = render.canvas.getBoundingClientRect();
     const touch = e.touches[0];
-    handCursor.style.left = `${touch.clientX - rect.left}px`;
-    handCursor.style.top = `${touch.clientY - rect.top}px`;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const currentX = (touch.clientX - rect.left) * scaleX;
+    const currentY = (touch.clientY - rect.top) * scaleY;
+
+    const deltaX = currentX - dragStartX;
+    const deltaY = currentY - dragStartY;
+    const dragDistance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+
+    const maxDrag = canvas.width / 2;
+    const dragPercent = Math.min(dragDistance / maxDrag, 1);
+
+    armAngle = minAngle + (maxAngle - minAngle) * dragPercent;
+    launchPower = calculateLaunchPower(armAngle);
+
+    const newRockPos = getRockPosition();
+    Body.setPosition(rockBody, newRockPos);
 });
 
 canvas.addEventListener('touchend', () => {
-    handCursor.style.display = 'none';
+     if (!isDragging || !canShoot) return;
+
+    isDragging = false;
+    dragStartX = null;
+    dragStartY = null;
+
+    if (launchPower > 5) {
+        const rad = (90 - armAngle) * Math.PI / 180;
+        const velocityMagnitude = launchPower * 0.37; // same as mouse logic
+
+        World.remove(world, rockConstraint);
+        Body.setStatic(rockBody, false);
+        Body.setVelocity(rockBody, {
+            x: Math.cos(rad) * velocityMagnitude * scaleX,
+            y: -Math.sin(rad) * velocityMagnitude * scaleY
+        });
+
+        isBouncing = true;
+        bounceStartTime = performance.now();
+        bounceAmplitude = 45 * scaleAvg;
+
+        canShoot = false;
+        clearTimeout(reloadTimeout);
+        reloadTimeout = setTimeout(() => {
+            resetRock();
+            canShoot = true;
+        }, 4000);
+
+        if (!rockLaunched) {
+            rockLaunched = true;
+            setTimeout(() => {
+                resetBtn.classList.add('show');
+                moveLeftBtn.classList.add('show');
+                moveRightBtn.classList.add('show');
+            }, 3000);
+        }
+    } else {
+        const newRockPos = getRockPosition();
+        Body.setPosition(rockBody, newRockPos);
+
+        if (!world.constraints.includes(rockConstraint)) {
+            World.add(world, rockConstraint);
+        }
+
+        armAngle = 0;
+        launchPower = 0;
+    }
 });
 
     const gameContainer = document.getElementById('game-container');
@@ -310,10 +378,10 @@ gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
 
         // ALL THIS IS NEW! DELETE IF IT MESSES UP EVERYTHING
     const blockPhysics = {
-    friction: 0.6,
-    frictionAir: 0.05,
-    restitution: 0.1,
-    angularDamping: 0.6
+    friction: 0.8,
+    frictionAir: 0.08,
+    restitution: 0.05,
+    angularDamping: 0.8
 };
 
         // Limpiar bloques existentes
@@ -833,7 +901,8 @@ if (isResettingArm) {
 }
         drawArmWithBounceEffect(ctx, pivotX-5, pivotY-65, armAngle, isBouncing, bounceStartTime, bounceAmplitude, bounceDecay, bounceFrequency, images, armLength, scaleAvg);
 
-        //display.textContent = `armAngle: ${armAngle.toFixed(2)}, launchPower: ${launchPower.toFixed(2)}`;
+        //DISPLAU LOG
+         display.textContent = `armAngle: ${armAngle.toFixed(2)}, launchPower: ${launchPower.toFixed(2)}`;
 
         if (elapsedTime <= 5) {
             if (arrowAnimPhase === 0) {
