@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Made by WeSpark -->
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
@@ -23,7 +24,7 @@
             height: 100%;
             max-width: 1485px;
             max-height: 580px;
-            cursor: none; /* ❌ Hide regular pointer */
+            cursor: none; /* Hide regular pointer */
         }
 
 
@@ -45,19 +46,18 @@
             max-height: 100%;
         }
     
-    #move-left, #move-right {
-    position: absolute;
-    top: 5%;
+#move-left,
+#move-right {
     padding: 10px 20px;
     background: #FCD307;
     color: black;
     border: none;
     border-radius: 15px;
-    cursor: pointer;
     font-size: 16px;
+    position: absolute;
     z-index: 100;
-    transform: scale(1);
-    transition: transform 0.3s ease;
+    opacity: 0;
+    transition: opacity 0.8s ease;
 }
 
 #move-left:hover,
@@ -66,12 +66,19 @@
     background: #FFBC00;
 }
 
+#move-left.show,
+#move-right.show {
+    opacity: 1;
+}
+
 #move-left {
+    top: 5%;
     left: 3%;
 }
 
 #move-right {
-    left: 8%;
+    top: 5%;
+    left: 10%;
 }
 
 #reset-btn,
@@ -118,14 +125,14 @@
     <canvas id="physicsCanvas" width="1481" height="700"></canvas>
     <button id="reset-btn">Reset</button>
     <button id="move-left">&#x25C0;</button> <!-- ◀ -->
-<button id="move-right">&#x25B6;</button> <!-- ▶ -->
+    <button id="move-right">&#x25B6;</button> <!-- ▶ -->
     <img id="hand-cursor" src="https://static.wixstatic.com/media/a687f1_0911a368732d427e9e837d3007bbc84d~mv2.png" alt="Tutorial Hand">
     <!-- --> <div id="display">Angle: 0, launchPower: 0</div>
 </div>
 <script>
     const { Engine, Render, World, Bodies, Runner, Mouse, MouseConstraint, Events, Body, Constraint } = Matter;
 
-    // Factores de escala
+    // Scale Factors
     const scaleX = 1;
     const scaleY = 0.6;
     const scaleAvg = (scaleX + scaleY) / 2 * 0.8;
@@ -162,7 +169,9 @@ canvas.addEventListener('touchstart', (e) => {
 });
 
 canvas.addEventListener('touchmove', (e) => {
+    render.canvas.addEventListener('touchmove', (e) => {
     if (!isDragging || !canShoot || dragStartX === null || dragStartY === null) return;
+
     const rect = render.canvas.getBoundingClientRect();
     const touch = e.touches[0];
     const scaleX = canvas.width / rect.width;
@@ -183,6 +192,8 @@ canvas.addEventListener('touchmove', (e) => {
 
     const newRockPos = getRockPosition();
     Body.setPosition(rockBody, newRockPos);
+});
+
 });
 
 canvas.addEventListener('touchend', () => {
@@ -275,11 +286,24 @@ document.addEventListener('pointerup', () => {
         canvas.style.width = `${newWidth}px`;
         canvas.style.height = `${newHeight}px`;
 
-        // Adjust reset button position
+        // Adjust reset, left, and right buttons position
         resetBtn.style.top = `${20 / 580 * newHeight}px`;
         resetBtn.style.right = `${20 / 1485 * newWidth}px`;
         resetBtn.style.fontSize = `${16 / 580 * newHeight}px`;
         resetBtn.style.padding = `${10 / 580 * newHeight}px ${20 / 1485 * newWidth}px`;
+
+        moveLeftBtn.style.top = `${20 / 580 * newHeight}px`;
+        moveLeftBtn.style.left = `${40 / 1485 * newWidth}px`;
+
+        moveRightBtn.style.top = `${20 / 580 * newHeight}px`;
+        moveRightBtn.style.left = `${120 / 1485 * newWidth}px`;
+
+        moveLeftBtn.style.fontSize = `${16 / 580 * newHeight}px`;
+        moveRightBtn.style.fontSize = `${16 / 580 * newHeight}px`;
+
+        moveLeftBtn.style.padding = `${10 / 580 * newHeight}px ${20 / 1485 * newWidth}px`;
+        moveRightBtn.style.padding = `${10 / 580 * newHeight}px ${20 / 1485 * newWidth}px`;
+
     }
 
 
@@ -297,7 +321,7 @@ document.addEventListener('pointerup', () => {
         }
     });
 
- // Create gradient for ground (más grueso y con mejor degradado)
+ // Create gradient for ground
 const ctx = render.context;
 const groundHeight = 150 * scaleY; // Ajusta la altura del suelo según sea necesario
 const gradient = ctx.createLinearGradient(0, 580, 0, 580 - groundHeight);
@@ -367,7 +391,7 @@ gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
         const blockWidth = 23 * scaleX;
         const blockHeight = 130 * scaleY;
         const baseX = 1270;
-        const baseY = 100;
+        const baseY = 300; // Make the blocks fall from a lower position - changed from 100 to 300
         const spacing = 70 * scaleX;
 
         const blockRender = {
@@ -1058,8 +1082,7 @@ ctx.restore();
     });
   
 
-  //NOTHING AFTER HERE !!!
-
+  //Don't change after this part
     Runner.run(engine);
     Render.run(render);
 </script>
