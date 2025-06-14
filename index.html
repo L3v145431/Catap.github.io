@@ -308,33 +308,41 @@ gradient.addColorStop(1, '#A9A9A9'); // Gris oscuro al final
             lineWidth: 6 * scaleAvg
         };
 
+        // ALL THIS IS NEW! DELETE IF IT MESSES UP EVERYTHING
+    const blockPhysics = {
+    friction: 0.6,
+    frictionAir: 0.05,
+    restitution: 0.1,
+    angularDamping: 0.6
+};
+
         // Limpiar bloques existentes
         World.remove(world, allBlocks);
 
         // Crear nuevos bloques
         baseBlocks = [
-            Bodies.rectangle(baseX - (blockWidth + 60 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender }),
-            Bodies.rectangle(baseX - (25 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender }),
-            Bodies.rectangle(baseX + (25 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender }),
-            Bodies.rectangle(baseX + (blockWidth + 60 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender })
+            Bodies.rectangle(baseX - (blockWidth + 60 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender, blockPhysics }),
+            Bodies.rectangle(baseX - (25 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender,blockPhysics }),
+            Bodies.rectangle(baseX + (25 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender,blockPhysics }),
+            Bodies.rectangle(baseX + (blockWidth + 60 * scaleX), baseY, blockWidth, blockHeight, { render: blockRender,blockPhysics })
         ];
 
         middleHorizontal = [
-            Bodies.rectangle(baseX - (blockWidth / 2 + spacing / 2), baseY - blockHeight / 2, 92 * scaleX, 40 * scaleY, { render: blockRender }),
-            Bodies.rectangle(baseX + (blockWidth / 2 + spacing / 2), baseY - blockHeight / 2, 92 * scaleX, 40 * scaleY, { render: blockRender })
+            Bodies.rectangle(baseX - (blockWidth / 2 + spacing / 2), baseY - blockHeight / 2, 92 * scaleX, 40 * scaleY, { render: blockRender,blockPhysics }),
+            Bodies.rectangle(baseX + (blockWidth / 2 + spacing / 2), baseY - blockHeight / 2, 92 * scaleX, 40 * scaleY, { render: blockRender,blockPhysics })
         ];
 
         topVerticals = [
-            Bodies.rectangle(baseX - (35 * scaleX), baseY - blockHeight, blockWidth, blockHeight, { render: blockRender }),
-            Bodies.rectangle(baseX + (35 * scaleX), baseY - blockHeight, blockWidth, blockHeight, { render: blockRender })
+            Bodies.rectangle(baseX - (35 * scaleX), baseY - blockHeight, blockWidth, blockHeight, { render: blockRender,blockPhysics }),
+            Bodies.rectangle(baseX + (35 * scaleX), baseY - blockHeight, blockWidth, blockHeight, { render: blockRender,blockPhysics })
         ];
 
         topHorizontal = [
-            Bodies.rectangle(baseX, baseY - blockHeight - blockHeight / 2, 100 * scaleX, 40 * scaleY, { render: blockRender })
+            Bodies.rectangle(baseX, baseY - blockHeight - blockHeight / 2, 100 * scaleX, 40 * scaleY, { render: blockRender,blockPhysics })
         ];
 
         topBlock = [
-            Bodies.rectangle(baseX, baseY - 2 * blockHeight, blockWidth, blockHeight, { render: blockRender })
+            Bodies.rectangle(baseX, baseY - 2 * blockHeight, blockWidth, blockHeight, { render: blockRender,blockPhysics })
         ];
 
         allBlocks = [...baseBlocks, ...middleHorizontal, ...topVerticals, ...topHorizontal, ...topBlock];
@@ -667,12 +675,15 @@ render.canvas.addEventListener('touchstart', (e) => {
     const touchX = (touch.clientX - rect.left) * scaleX;
     const touchY = (touch.clientY - rect.top) * scaleY;
 
+    dragStartX = touchX; //NEW
+    dragStartY = touchY; //NEW
     isDragging = true;
 });
 
 // Touch MOVE = like mousemove
 render.canvas.addEventListener('touchmove', (e) => {
     if (!isDragging || !canShoot) return;
+    e.preventDefault(); //Prevent scrolling inside.
     const rect = render.canvas.getBoundingClientRect();
     const touch = e.touches[0];
     const scaleX = canvas.width / rect.width;
@@ -978,7 +989,7 @@ ctx.restore();
     });
   
 
-  //NOTHIGN AFTER HERE !!!
+  //NOTHING AFTER HERE !!!
 
     Runner.run(engine);
     Render.run(render);
